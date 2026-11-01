@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use this code or data, please cite it as below."
+title: "Say vs know: hidden reward hacks"
+abstract: >-
+  Does a model's character decide whether it internally treats its own reward
+  hack as cheating, separately from whether it says so? Qwen3-8B principled and
+  pragmatic LoRA characters, GRPO on coding tasks with a planted wrong test,
+  reasoning monitors versus a pre-RL cheating-direction probe, and a post-hoc
+  design audit.
+authors:
+  - alias: nabeel-wq
+type: software
+license: MIT
+date-released: 2026-11-01
+keywords:
+  - interpretability
+  - reward hacking
+  - AI safety
+  - probing
+  - reinforcement learning

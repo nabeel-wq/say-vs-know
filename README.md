@@ -209,3 +209,9 @@ This runs the design audit and writes `results/audit_design.json`.
 - **Replaced arm:** `neutral` replaced the planned no-character arm, because the base model's reasoning overran max_tokens on almost every sample.
 - **Heuristic hack types:** the split into literal hardcode, edge input and rule change is a code heuristic.
 - **Post-hoc analyses:** the design audit, the task-matched controls and the mean-pooling readout were all done after seeing the pre-registered results.
+
+## License
+
+The code is under the [MIT License](LICENSE). Generated data, results and the write-ups are under [CC BY 4.0](LICENSE-DATA). Some of that data is text from third-party models (Claude Haiku, GPT, Gemini and Qwen3-8B fine-tunes), whose providers' terms may also apply; see [`LICENSE-DATA`](LICENSE-DATA).
+
+To cite this repo, use the "Cite this repository" button on GitHub, which reads [`CITATION.cff`](CITATION.cff).
