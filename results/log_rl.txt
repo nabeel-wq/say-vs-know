@@ -1,0 +1,14 @@
+
+===== rl =====  (Tinker spent so far $0.16, OpenRouter $0.44)
+
+$ python launch_rl.py --arms principled pragmatic -- --steps 30 --tasks-per-step 16
+started rl_principled_s0 (pid 22652)
+started rl_principled_s1 (pid 14192)
+started rl_pragmatic_s0 (pid 16180)
+started rl_pragmatic_s1 (pid 13068)
+rl_principled_s0 exited 1
+rl_principled_s1 exited 1
+rl_pragmatic_s0 exited 0
+rl_pragmatic_s1 exited 1
+failed: ['rl_principled_s0', 'rl_principled_s1', 'rl_pragmatic_s1'] (see runs/<name>/stdout.log; rerun resumes from last checkpoint)
+stage failed: launch_rl.py --arms principled pragmatic -- --steps 30 --tasks-per-step 16

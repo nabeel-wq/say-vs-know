@@ -1,0 +1,8 @@
+started rl_principled_s0 (pid 16700)
+started rl_principled_s1 (pid 11636)
+started rl_pragmatic_s0 (pid 10564)
+started rl_pragmatic_s1 (pid 4668)
+rl_principled_s0 exited 0
+rl_principled_s1 exited 0
+rl_pragmatic_s0 exited 0
+rl_pragmatic_s1 exited 0

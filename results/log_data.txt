@@ -1,0 +1,15 @@
+
+===== data =====  (Tinker spent so far $0.00, OpenRouter $0.23)
+
+$ python gen_text.py dialogues
+300 user prompts
+principled: 298 dialogues -> data/dialogues_principled.jsonl
+pragmatic: 300 dialogues -> data/dialogues_pragmatic.jsonl
+
+$ python gen_text.py pairs
+400 code + 200 non-code pairs -> data/cheat_pairs.jsonl
+
+$ python gen_text.py spillover
+93 spillover items -> data/spillover.jsonl
+
+Done. Tinker $0.06, OpenRouter $0.44. Next: upload kaggle_bundle/ to Kaggle (see README), then copy acts/ back and rerun analyze.py.

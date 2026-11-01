@@ -1,0 +1,11 @@
+# Local pipeline (Tinker + OpenRouter) and analysis. Versions are the ones the results were produced with.
+tinker==0.36.0
+tinker-cookbook==0.5.8
+openai>=3.37
+numpy>=2.5
+scipy>=1.18
+scikit-learn>=1.9
+matplotlib>=3.11
+
+# GPU stage only (installed in the Kaggle notebook, not needed locally):
+# torch, transformers, peft, huggingface-hub

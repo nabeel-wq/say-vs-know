@@ -1,0 +1,12 @@
+.env
+runs/
+acts/
+kaggle_bundle/
+__pycache__/
+results/cost_ledger.jsonl
+kaggle_bundle_full/
+
+# local-only notes and leftovers
+HANDOFF.md
+PUSH_TO_GITHUB.md
+results/_tasks40_backup.jsonl

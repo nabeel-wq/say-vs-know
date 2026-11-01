@@ -1,0 +1,5 @@
+batch failed: model never returned valid JSON
+batch failed: model never returned valid JSON
+generated 220 candidates
+101 passed reference validation
+wrote 70 tasks (35 bugged, 35 clean) -> data/tasks.jsonl

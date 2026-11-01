@@ -1,0 +1,2 @@
+1712 monitor calls over 4 runs (prompt f7ff7a803bb7)
+wrote 1712 verdicts (1 errors; rerun to retry) -> D:\pivotal\hidden_hacks\results\monitor_verdicts.jsonl
