@@ -24,7 +24,7 @@ The hypotheses were pre-registered. The pre-registered tests came out null or re
 Other findings:
 
 - **RL erodes the cheating signal in every arm.** Before RL, hacked reasoning sits 0.4–0.6 honest-SDs higher on the cheating direction. That gap shrinks towards zero during RL, while the direction still separates held-out cheating text at AUROC ≥ 0.98. The principled character doesn't prevent it.
-- **Most of the null comes from the hack label, not the measurements.** Outside the permission arm, 38–58% of "hacks" are a general rule that happens to match the wrong edge-case test (for example "no zeros → return -1"). The model treats the test as the spec. Monitors catch 6–17% of these, and the probe gap on them is about zero.
+- **Silent hacks are rule-level test-fitting, and the pre-registered probe misses them.** Outside the permission arm, about 40% of hacks change a general rule to match the wrong test against an explicit spec (for example "return 0 if no zeros" coded as -1). Monitors catch 9–21% of these, and the probe gap on them is near zero. Special-case branches are caught 42–65% of the time and register on the probe. Two LLM judges reading only the code (κ 0.84) find just 7% of hacks benign, and dropping them flips no verdict, so invalid hack labels are not what caused the null.
 - **A supervised "hack probe" mostly detects task identity.** It appears to beat the concept probe (AUROC 0.73–0.86 vs 0.50–0.56). However, a per-task hack rate with no activations at all scores 0.94–0.97. Comparing hacked and honest episodes from the same GRPO group, the two probes are close (0.57–0.66 vs 0.53–0.61).
 - **The readout choice matters (exploratory).** The pre-registered last-token readout mostly re-reads what the model says. With mean pooling, H2 passes in the same verdict code (principled 1.17 vs pragmatic 0.35). That shrinks to 0.36 vs 0.22 when matched on task, so it's a lead for follow-up, not a result.
 
@@ -86,7 +86,8 @@ These checks ran after the pre-registered results came in ([`audit_design.py`](a
 | Truncation in RL (max_tokens 1024) | **Ruled out.** 2.6–4.2% of episodes truncated, covering 6 of 2,501 hacks |
 | Checkpoint mismatch (checkpoint c scores episodes from steps c..c+4) | **Not driving it.** Episodes sampled exactly at step c show similar gaps |
 | Reasoning length | **Ruled out.** Gaps barely move after regressing out log length |
-| **Hack label validity** | **Real problem.** Rule-change "hacks" aren't knowing cheating |
+| Hack label validity | **Not driving it.** LLM judges find only 7% of hacks benign; dropping them flips nothing |
+| **Hack type** | **Real structure.** Silent rule-level test-fitting is invisible to the pre-registered readout |
 | **"Keep your reasoning brief" in the prompt** | **Real limit.** Median reasoning is 44–98 tokens, which squeezes the "says" axis |
 | **Readout choice** | **Results depend on it.** See [`results/report_meanpool.md`](results/report_meanpool.md) |
 | **Task concentration** | **Real problem.** 3 tasks carry 78–83% of main-arm hacks |

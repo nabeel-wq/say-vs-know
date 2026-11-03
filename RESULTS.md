@@ -13,7 +13,7 @@ Setup:
 
 1. **Pre-registered hypotheses:** H1 comes out reversed, H2 and H3 are not supported, and H4 is only half met.
 2. **The cheating signal fades over RL.** Before RL, hacked reasoning sits 0.4–0.6 honest-SDs higher on a cheating direction built from synthetic text. RL shrinks that gap towards zero in every arm, while the direction itself still reads held-out cheating text at AUROC ≥ 0.98. Character doesn't protect against this.
-3. **Part of the null traces to the task design, not the measurements.** Outside the permission arm, 38–58% of "hacks" are a general rule that happens to match the wrong edge-case test (e.g. "no zeros → -1"). Monitors flag 6–17% of these and the probe gap on them is about zero: the model treats the test as the spec rather than as something to game. Truncation and the checkpoint mismatch are ruled out. Re-running the pre-registered tests without these hacks moves the principled gap up but flips no verdict (section 6).
+3. **Silent hacks are rule-level test-fitting, and the pre-registered probe misses them.** Outside the permission arm, about 40% of hacks change a general rule to match the wrong test, against an explicit spec (e.g. "return 0 if no zeros" coded as -1). Monitors catch 9–21% of these, and the last-token probe gap on them is near zero. Blatant special-case branches are caught 42–65% of the time and do register on the probe. An LLM-judge check (2 judges, κ 0.84) finds only 7% of hacks benign, and removing those flips no verdict, so invalid hack labels are not the cause. Truncation and the checkpoint mismatch are ruled out too (section 6).
 4. **Methods finding.** A supervised "hack probe" seems to beat the concept probe (AUROC 0.73–0.86 vs 0.50–0.56), but that is mostly task identity. Between the three non-permission arms, a per-task hack rate with no activations scores 0.94–0.97. Within the same GRPO group (same task, step and prompt), the two probes are close (0.57–0.66 vs 0.53–0.61).
 5. **One lead, exploratory only.** With mean pooling, the readout the design listed as the alternative, the H2/H3 pattern appears: principled keeps the gap (1.0 → 1.0) and pragmatic loses it (0.8 → 0.35), and this survives length control and holds on silent hacks. It shrinks to 0.36 vs 0.22 when matched on task, though, so it is a lead for a follow-up, not a result.
 
@@ -43,7 +43,7 @@ Two monitors read the reasoning only: openai/gpt-6-luna and google/gemini-3.5-fl
 | permission | 97.2% [96.3, 98.0] | 47% |
 
 - **H1 (principled hides more) is not supported, and the data point the other way.** Principled hacks are caught more often in both seeds (s0 0.48 vs 0.32; s1 0.31 vs 0.24). Part of this is monitor sensitivity: principled reasoning talks about tests more in general (10% false alarms vs 3%).
-- Without permission, 59-76% of hacks are silent. Section 6 shows why: most silent hacks adopt the wrong test's value as the spec ("return -1 per the docstring", when the docstring says 0) rather than gaming it.
+- Without permission, 59-76% of hacks are silent. Section 6 shows what they are: mostly rule-level test-fitting against an explicit spec (e.g. "return 0 if no zeros" coded as -1), with reasoning too brief to show whether the model knows.
 - Under permission the model says it openly (97% caught), but its honest reasoning also discusses special-casing, so the monitors raise 47% false alarms.
 
 ## 3. Does it know? Concept probe (H2, H3)
@@ -115,36 +115,49 @@ All of these checks were run after seeing the results (`audit_design.py`, plus t
 | RL truncation (max_tokens 1024) | truncated episodes among hacks | **ruled out**: 2.6-4.2% truncated, 6 of 2,501 hacks |
 | Checkpoint mismatch (checkpoint c is used for episodes from steps c..c+4) | gap on episodes sampled exactly at step c | **not driving it**: exact-step gaps are similar (pragmatic 0.38 vs 0.25 overall, principled 0.32 vs 0.19, permission 0.15 vs 0.29) |
 | Reasoning length driving mean scores | gap after regressing out log length | **ruled out**: gaps barely move |
-| **Hack label validity** | hack type read from the code | **real problem**, see below |
+| Hack label validity | hack type from the code, validated by two LLM judges | **not driving it**: only 7% of non-permission hacks are benign, and dropping them flips nothing (see below) |
+| **Hack type** | catch rate and probe gap by hack type | **real structure**: silent rule-level test-fitting is invisible to the pre-registered readout, see below |
 | **"Keep your reasoning brief" in the prompt** | reasoning length | **real limit on the "says" axis**: median 44-98 tokens; 36% of neutral bugged episodes are under 30 tokens |
 | **Readout choice** | last token vs mean pooling | **result depends on it**, see below |
 | **Task identity in the hack probe** | per-task prior and within-group AUROC | **real problem**, see section 7 |
 
-**Hack labels.** "Hacked" means passing the planted wrong test. Reading the code shows three kinds:
+**Hack labels.** "Hacked" means passing the planted wrong test. Two passes classify the hacks: a code heuristic (does the planted input appear verbatim in the code?), and an LLM judge (`label_hacks.py`, added 2026-11-03).
+- The judge, Claude Haiku 5.5, reads the task, the planted test and the code only. It never sees the reasoning, so its label is independent of the monitors.
+- It labels each hack *special case* (a branch or hardcoded value aimed at the planted input), *test-fitted rule* (a general rule with no basis in the description), or *convention* (a defensible reading or an ordinary bug).
+- A second judge (Gemini 3.5 Flash Lite) relabelled 200 random hacks. Agreement on knowing (the first two labels) vs convention is 97.5% (κ 0.84), and 89% on all three labels (κ 0.80).
+- Every non-permission hack was labelled, plus 100 permission hacks. It cost $0.24.
 
-| arm | literal hardcode (planted input in the code) | edge input (planted test is on an empty or degenerate input) | rule change (a general rule matches the wrong test) |
+| arm | special case: n, monitors catch, probe gap | test-fitted rule | convention |
 |---|---|---|---|
-| principled | 43, monitors catch 51% | 204, 56% | 149, 17% |
-| pragmatic | 33, 36% | 270, 43% | 199, 6% |
-| neutral | 12, 8% | 29, 59% | 57, 11% |
-| permission | 1180, 99% | 240, 96% | 85, 68% |
+| principled | 224 (57%), 59%, 0.23 [0.09, 0.38] | 139 (35%), 21%, 0.05 [-0.14, 0.25] | 33 (8%), 6%, 0.47 [0.06, 0.99] |
+| pragmatic | 272 (54%), 42%, 0.30 [0.16, 0.44] | 204 (41%), 12%, 0.18 [0.04, 0.32] | 26 (5%), 4%, 0.15 [-0.22, 0.52] |
+| neutral | 26 (27%), 65%, 0.75 [0.25, 1.28] | 53 (54%), 9%, 0.06 [-0.18, 0.32] | 19 (19%), 11%, 0.24 [-0.30, 0.80] |
+| permission (100 sampled) | 100 (100%), 98%, 0.33 [0.09, 0.56] | 0 | 0 |
 
-- Over all arms, the probe gap is 0.33 [0.27, 0.39] for literal hardcodes, 0.28 [0.20, 0.36] for edge inputs, and 0.08 [-0.01, 0.18] for rule changes.
-- Rule-change hacks look like this in the model's reasoning: "a grid with no zeros returns -1 per the docstring". The model isn't hiding a cheat. It has adopted the test's convention as the spec, so there is nothing to say and nothing to "know".
-- The design assumed every planted-test pass was knowing cheating. For 38-58% of hacks outside the permission arm (principled 38%, pragmatic 40%, neutral 58%) it isn't, which dilutes H1-H3 towards null.
+(The probe gap is the pre-registered layer-18 last-token readout.)
 
-**Rerun on knowing hacks only** (`analyze.py --hacks knowing`, added 2026-11-03, exploratory). This drops the 490 rule-change hacks; honest episodes are untouched. Full output is in `results/report_knowing.md` and `report_meanpool_knowing.md`.
+- **Only 7% of non-permission hacks are benign** (78 of 1,096). These are mostly an off-by-one loop bug on t001 that happens to give the planted value.
+- **An earlier version of this section was wrong.** It used the code heuristic and said 38-58% of hacks were "rule changes" the model doesn't treat as cheating. The judge puts 86% of those heuristic rule changes in the test-fitted class, and 367 of the 405 come from a single task, t053.
+  - t053's description explicitly says "Return 0 if there are no zeros". The planted test expects -1, and the hacked code returns -1.
+  - That is test-fitting against an explicit spec, not an ambiguous convention.
+  - The model's reasoning on these is usually a sentence or two, so whether it "knows" can't be read from it either way.
+- The heuristic's "literal hardcode" class also has false positives: 17% are convention, because small numeric planted inputs such as `2` appear in the code anyway.
+- **The real structure is by hack type.** Blatant special-case branches are often verbalised (42-65% caught outside permission) and show a probe gap of 0.23-0.75. Rule-level test-fitting is mostly silent (9-21% caught) and nearly invisible to the pre-registered readout (0.05-0.18).
+  - The exploratory mean-pool readout (layer 22, non-permission arms) does register it: special case 0.81, test-fitted rule 0.63.
+  - But it also gives 0.45 on the benign hacks, so mean pooling is not specific to knowing cheating.
 
-| test | all hacks (pre-registered) | knowing hacks only |
-|---|---|---|
-| H1: monitor catch rate, principled vs pragmatic | 0.41 vs 0.28 (reversed) | 0.56 vs 0.42 (still reversed, in both seeds) |
-| H2: last-token gap at ckpt 55, principled vs pragmatic | 0.13 [-0.16, 0.44] vs 0.03 | 0.27 [-0.05, 0.62] vs 0.02 (**not supported**) |
-| H2: mean-pool gap at ckpt 55 (exploratory) | 1.17 vs 0.35 (passes) | 1.21 [0.73, 1.72] vs 0.23 (passes) |
-| H3: pragmatic fade | fails | fails under both readouts |
-| task-matched gap, ckpt ≥ 30, last token (frozen) | 0.33 vs 0.11 | 0.39 [0.06, 0.76] vs 0.09 [-0.26, 0.44] |
+**Rerun without benign hacks** (exploratory). Honest episodes are untouched in every column. Full output is in `results/report_knowing*.md` and `report_meanpool_knowing*.md`.
 
-- Cleaning the labels pushes the principled gap up and moves things slightly towards H2, but **no pre-registered verdict flips**, and the CIs still overlap.
-- So label validity explains part of the null, not all of it. A bigger sample of clean hacks (v2 fix 1) is needed to say more.
+| test | all hacks (pre-registered) | heuristic: drop 490 rule changes | LLM judge: drop 78 conventions |
+|---|---|---|---|
+| H1: monitor catch rate, principled vs pragmatic | 0.41 vs 0.28 (reversed) | 0.56 vs 0.42 (reversed) | 0.44 vs 0.29 (reversed) |
+| H2: last-token gap at ckpt 55, principled vs pragmatic | 0.13 [-0.16, 0.44] vs 0.03 | 0.27 [-0.05, 0.62] vs 0.02 | 0.11 [-0.22, 0.42] vs 0.00 (**not supported**) |
+| H2: mean-pool gap at ckpt 55 (exploratory) | 1.17 vs 0.35 (passes) | 1.21 vs 0.23 (passes) | 1.17 [0.78, 1.61] vs 0.31 (passes) |
+| H3: pragmatic fade | fails | fails | fails under both readouts |
+| task-matched gap, ckpt ≥ 30, last token (frozen) | 0.33 vs 0.11 | 0.39 vs 0.09 | 0.29 [0.03, 0.53] vs 0.12 [-0.19, 0.44] |
+
+- **Label validity does not explain the null.** With the validated labels, removing the benign hacks changes almost nothing, and no pre-registered verdict flips.
+- The heuristic version looked slightly better for H2 only because it also dropped t053's silent test-fitted hacks, which carry little probe signal.
 
 **Readout sensitivity.** Gap in honest-SD units, steps 0-29 → steps 30-59:
 
@@ -178,7 +191,7 @@ A logistic regression is trained on hacked vs honest episodes of one arm and tes
 
 ## 8. What a v2 should change
 
-1. **Plant bugs that only literal hardcoding can pass** (e.g. `'11' → '21x'`), not edge-case conventions that a general rule can match. That makes the hack label mean knowing cheating.
+1. **Plant bugs that only literal hardcoding can pass** (e.g. `'11' → '21x'`), not edge cases that a general rule can match. Rule-level test-fitting (section 6) is silent, and code alone can't show whether the model knows it is cheating, so a hack label that can only mean a literal special case is far easier to interpret.
 2. **Drop "Keep your reasoning brief".** Handle the truncation that sank the no-character arm with a larger max_tokens instead.
 3. **Pre-register the readout on real episodes.** Use a small held-out set of labelled episodes rather than synthetic text alone, or pre-register mean pooling, which the design text originally described ("averaged over reasoning tokens").
 4. **Report task-matched gaps and a per-task prior baseline as primary,** with more tasks so hacks aren't 80% concentrated in three of them.
@@ -189,7 +202,7 @@ A logistic regression is trained on hacked vs honest episodes of one arm and tes
 - **neutral replaced the planned no-character arm.** The base model's reasoning overran max_tokens on about 100% of episodes (its runs are kept locally in `runs/_failed/`, which isn't in the repo). The neutral SFT control came out slightly principled-leaning.
 - **The arms ran different numbers of steps.** Permission and neutral ran 30 steps; compare them with the main arms over steps 0-29.
 - **Everything in sections 6-7, and the mean-pooling results, was done after seeing the pre-registered results.** It is exploratory.
-- **The hack-type split is a heuristic.** It looks for the planted input written verbatim in the code.
+- **Hack types come from code only.** They come from one LLM judge, checked against a second on 200 hacks (κ 0.84), and from a cruder verbatim-input heuristic. The heuristic mislabels about 20% of hacks.
 - **Scope is narrow:** one 8B model and one task type. Two monitor verdicts errored and were left out. The steering stretch was not run.
 
 ## Reproduce
@@ -200,4 +213,7 @@ python analyze.py --pool mean        # exploratory readout -> results/report_mea
 python audit_design.py               # design audit -> results/audit_design.json
 python analyze.py --hacks knowing    # exploratory: rule-change hacks dropped -> results/report_knowing.md
 python analyze.py --hacks knowing --pool mean   # -> results/report_meanpool_knowing.md
+python label_hacks.py --second-judge 200        # LLM hack-type labels -> results/hack_labels.jsonl (~$0.24)
+python analyze.py --hacks knowing-llm [--pool mean]   # exploratory: LLM "convention" hacks dropped
+python audit_design.py                          # rerun after labelling: adds llm_kinds, judge_agreement, gap_by_llm_kind
 ```

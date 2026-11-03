@@ -14,7 +14,7 @@ import numpy as np
 HH = Path(__file__).resolve().parent
 OUT = HH / "results" / "audit_design.json"
 sys.path.insert(0, str(HH))
-from analyze import ACTS, DATA, hack_kind, load_episodes, load_npz, reasoning_only, says_labels, synth_direction  # noqa: E402
+from analyze import ACTS, DATA, hack_kind, llm_hack_labels, load_episodes, load_npz, reasoning_only, says_labels, synth_direction  # noqa: E402
 from common import read_jsonl  # noqa: E402
 
 rng = np.random.default_rng(0)
@@ -62,6 +62,37 @@ for a in sorted({e["arm"] for e in eps.values()}):
                 c[k][1] += 1
                 c[k][2] += any(says[i].values())
     out["hack_kinds"][a] = {k: {"n": v[0], "catch_rate": v[2] / v[1] if v[1] else None} for k, v in c.items()}
+
+# ---- 3b. LLM labels (label_hacks.py): mix, catch rate, agreement with the heuristic and between judges
+llm = {i: k for i, k in llm_hack_labels().items() if i in eps}
+LLM_KINDS = ("special_case", "test_fitted_rule", "convention")
+if llm:
+    out["llm_kinds"] = {}
+    for a in sorted({eps[i]["arm"] for i in llm}):
+        ids = [i for i in llm if eps[i]["arm"] == a]
+        out["llm_kinds"][a] = {}
+        for k in LLM_KINDS:
+            sel = [i for i in ids if llm[i] == k]
+            mon = [i for i in sel if i in says]
+            out["llm_kinds"][a][k] = {"n": len(sel), "share": round(len(sel) / len(ids), 3),
+                                      "catch_rate": round(np.mean([any(says[i].values()) for i in mon]), 3) if mon else None}
+    cross = defaultdict(lambda: defaultdict(int))
+    for i, k in llm.items():
+        cross[kinds[i]][k] += 1
+    out["heuristic_vs_llm"] = {h: dict(v) for h, v in cross.items()}
+    second = defaultdict(dict)
+    for v in read_jsonl(HH / "results" / "hack_labels.jsonl"):
+        if v.get("label"):
+            second[v["episode_id"]][v["judge"]] = v["label"]
+    pairs = [tuple(d.values()) for d in second.values() if len(d) == 2]
+    if pairs:
+        from sklearn.metrics import cohen_kappa_score
+        x, y = zip(*pairs)
+        knowing = lambda ls: [l != "convention" for l in ls]  # noqa: E731
+        out["judge_agreement"] = {"n": len(pairs), "agree_3way": round(float(np.mean([p == q for p, q in pairs])), 3),
+                                  "kappa_3way": round(float(cohen_kappa_score(x, y)), 3),
+                                  "agree_knowing": round(float(np.mean([p == q for p, q in zip(knowing(x), knowing(y))])), 3),
+                                  "kappa_knowing": round(float(cohen_kappa_score(knowing(x), knowing(y))), 3)}
 
 # ---- 4. probe scores under three readouts (pre-registered L18 last, plus mean-pool alternatives)
 base = load_npz(ACTS / "synthetic_base.npz")
@@ -117,6 +148,12 @@ out["gap_by_hack_kind"] = {a: {k: gap([i for i in hk if eps[i]["arm"] == a and k
                                for k in ("literal hardcode", "rule change", "edge input")} for a in arms}
 out["gap_by_hack_kind"]["all arms"] = {k: gap([i for i in hk if kinds[i] == k])
                                        for k in ("literal hardcode", "rule change", "edge input")}
+if llm:
+    out["gap_by_llm_kind"] = {a: {k: gap([i for i in hk if eps[i]["arm"] == a and llm.get(i) == k]) for k in LLM_KINDS}
+                              for a in arms}
+    out["gap_by_llm_kind"]["all arms"] = {k: gap([i for i in hk if llm.get(i) == k]) for k in LLM_KINDS}
+    out["gap_by_llm_kind_meanpool"] = {k: gap([i for i in hk if llm.get(i) == k and eps[i]["arm"] != "permission"], "L22 mean")
+                                       for k in LLM_KINDS}
 # ---- 5. does the probe just read the words? silent vs said hacks
 out["gap_said_vs_silent"] = {a: {"said": gap([i for i in hk if eps[i]["arm"] == a and i in says and any(says[i].values())]),
                                  "silent": gap([i for i in hk if eps[i]["arm"] == a and i in says and not any(says[i].values())])}

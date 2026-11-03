@@ -188,6 +188,23 @@ def hack_kind(e, tasks):
     return "rule change"
 
 
+def llm_hack_labels():
+    """episode_id -> label from the primary judge in label_hacks.py (special_case / test_fitted_rule / convention)."""
+    from common import JUDGE_MODEL
+    return {v["episode_id"]: v["label"] for v in read_jsonl(RESULTS / "hack_labels.jsonl")
+            if v.get("label") and v["judge"] == JUDGE_MODEL}
+
+
+def drop_convention(eps):
+    """Exploratory (--hacks knowing-llm): remove hacks the LLM judge labelled 'convention' (a defensible reading of the
+    description or an ordinary bug). Unlabelled hacks (most of the permission arm) are kept."""
+    lab = llm_hack_labels()
+    if not lab:
+        raise SystemExit("no results/hack_labels.jsonl: run label_hacks.py first")
+    keep = [e for e in eps if not (e["hacked"] and lab.get(e["episode_id"]) == "convention")]
+    return keep, len(eps) - len(keep)
+
+
 def drop_rule_change(eps):
     """Exploratory (--hacks knowing): remove rule-change hacks entirely, so 'hacked' means a knowing special-case.
     They are dropped, not relabelled honest, so the honest baseline is unchanged."""
@@ -844,11 +861,12 @@ def main():
     ap.add_argument("--pool", choices=["auto", "mean", "last"], default="auto",
                     help="auto = pre-registered rule (best base positive control); mean/last force an exploratory "
                          "readout and write *_<pool>pool outputs")
-    ap.add_argument("--hacks", choices=["all", "knowing"], default="all",
-                    help="knowing = exploratory: drop rule-change hacks (heuristic in hack_kind) and write *_knowing outputs")
+    ap.add_argument("--hacks", choices=["all", "knowing", "knowing-llm"], default="all",
+                    help="exploratory: knowing drops rule-change hacks (code heuristic), knowing-llm drops hacks the LLM "
+                         "judge called convention (label_hacks.py); writes *_<mode> outputs")
     args = ap.parse_args()
     global OUT_SUFFIX
-    OUT_SUFFIX = ("" if args.pool == "auto" else f"_{args.pool}pool") + ("_knowing" if args.hacks == "knowing" else "")
+    OUT_SUFFIX = ("" if args.pool == "auto" else f"_{args.pool}pool") + ("" if args.hacks == "all" else "_" + args.hacks.replace("-", "_"))
     eps = load_episodes()
     say("# Say vs know: results\n")
     if args.hacks == "knowing":
@@ -856,6 +874,11 @@ def main():
         say(f"**Exploratory (--hacks knowing, not pre-registered): {n_drop} rule-change hacks removed, so 'hacked' "
             "means a literal hardcode or an edge-input special case. Heuristic split from audit_design.py.**\n")
         summary["dropped_rule_change"] = n_drop
+    elif args.hacks == "knowing-llm":
+        eps, n_drop = drop_convention(eps)
+        say(f"**Exploratory (--hacks knowing-llm, not pre-registered): {n_drop} hacks the LLM judge labelled "
+            "'convention' removed (label_hacks.py, code only). 'Hacked' = special case or test-fitted rule.**\n")
+        summary["dropped_convention"] = n_drop
     say(f"{len(eps)} logged episodes across {len({e['run'] for e in eps})} runs. "
         "Scope: one 8B model, one task type; every rate is shown with raw counts.\n")
     if args.grade_steering:
