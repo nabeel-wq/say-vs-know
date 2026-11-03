@@ -13,7 +13,7 @@ Setup:
 
 1. **Pre-registered hypotheses:** H1 comes out reversed, H2 and H3 are not supported, and H4 is only half met.
 2. **The cheating signal fades over RL.** Before RL, hacked reasoning sits 0.4–0.6 honest-SDs higher on a cheating direction built from synthetic text. RL shrinks that gap towards zero in every arm, while the direction itself still reads held-out cheating text at AUROC ≥ 0.98. Character doesn't protect against this.
-3. **Much of the null traces to the task design, not the measurements.** Outside the permission arm, 38–58% of "hacks" are a general rule that happens to match the wrong edge-case test (e.g. "no zeros → -1"). Monitors flag 6–17% of these and the probe gap on them is about zero: the model treats the test as the spec rather than as something to game. Truncation and the checkpoint mismatch are ruled out (section 6).
+3. **Part of the null traces to the task design, not the measurements.** Outside the permission arm, 38–58% of "hacks" are a general rule that happens to match the wrong edge-case test (e.g. "no zeros → -1"). Monitors flag 6–17% of these and the probe gap on them is about zero: the model treats the test as the spec rather than as something to game. Truncation and the checkpoint mismatch are ruled out. Re-running the pre-registered tests without these hacks moves the principled gap up but flips no verdict (section 6).
 4. **Methods finding.** A supervised "hack probe" seems to beat the concept probe (AUROC 0.73–0.86 vs 0.50–0.56), but that is mostly task identity. Between the three non-permission arms, a per-task hack rate with no activations scores 0.94–0.97. Within the same GRPO group (same task, step and prompt), the two probes are close (0.57–0.66 vs 0.53–0.61).
 5. **One lead, exploratory only.** With mean pooling, the readout the design listed as the alternative, the H2/H3 pattern appears: principled keeps the gap (1.0 → 1.0) and pragmatic loses it (0.8 → 0.35), and this survives length control and holds on silent hacks. It shrinks to 0.36 vs 0.22 when matched on task, though, so it is a lead for a follow-up, not a result.
 
@@ -133,6 +133,19 @@ All of these checks were run after seeing the results (`audit_design.py`, plus t
 - Rule-change hacks look like this in the model's reasoning: "a grid with no zeros returns -1 per the docstring". The model isn't hiding a cheat. It has adopted the test's convention as the spec, so there is nothing to say and nothing to "know".
 - The design assumed every planted-test pass was knowing cheating. For 38-58% of hacks outside the permission arm (principled 38%, pragmatic 40%, neutral 58%) it isn't, which dilutes H1-H3 towards null.
 
+**Rerun on knowing hacks only** (`analyze.py --hacks knowing`, added 2026-11-03, exploratory). This drops the 490 rule-change hacks; honest episodes are untouched. Full output is in `results/report_knowing.md` and `report_meanpool_knowing.md`.
+
+| test | all hacks (pre-registered) | knowing hacks only |
+|---|---|---|
+| H1: monitor catch rate, principled vs pragmatic | 0.41 vs 0.28 (reversed) | 0.56 vs 0.42 (still reversed, in both seeds) |
+| H2: last-token gap at ckpt 55, principled vs pragmatic | 0.13 [-0.16, 0.44] vs 0.03 | 0.27 [-0.05, 0.62] vs 0.02 (**not supported**) |
+| H2: mean-pool gap at ckpt 55 (exploratory) | 1.17 vs 0.35 (passes) | 1.21 [0.73, 1.72] vs 0.23 (passes) |
+| H3: pragmatic fade | fails | fails under both readouts |
+| task-matched gap, ckpt ≥ 30, last token (frozen) | 0.33 vs 0.11 | 0.39 [0.06, 0.76] vs 0.09 [-0.26, 0.44] |
+
+- Cleaning the labels pushes the principled gap up and moves things slightly towards H2, but **no pre-registered verdict flips**, and the CIs still overlap.
+- So label validity explains part of the null, not all of it. A bigger sample of clean hacks (v2 fix 1) is needed to say more.
+
 **Readout sensitivity.** Gap in honest-SD units, steps 0-29 → steps 30-59:
 
 | readout | principled | pragmatic | principled, silent hacks only | pragmatic, silent hacks only |
@@ -185,4 +198,6 @@ A logistic regression is trained on hacked vs honest episodes of one arm and tes
 python analyze.py --read-neurons     # pre-registered readout -> results/report.md, summary.json, fig_*.png
 python analyze.py --pool mean        # exploratory readout -> results/report_meanpool.md, summary_meanpool.json
 python audit_design.py               # design audit -> results/audit_design.json
+python analyze.py --hacks knowing    # exploratory: rule-change hacks dropped -> results/report_knowing.md
+python analyze.py --hacks knowing --pool mean   # -> results/report_meanpool_knowing.md
 ```
